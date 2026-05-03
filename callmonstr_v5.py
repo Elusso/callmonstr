@@ -66,6 +66,7 @@ THEME = {
     "headerHeight": 40,
 }
 
+
 # Headers (from v8.0)
 MAIN_HEADERS = ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]
 ACTIVE_HEADERS = ["Дата", "Сотрудник", "ФИО", "Телефон", "Вакансия", "Город", "Статус", "Выезд", "Приезд", "Заметки"]
@@ -77,10 +78,10 @@ VALID_STATUSES = {
     "✅ ПОДПИСАН", "✅ Подписан", "⚫️ ОТКАЗ", "❌ Отказ", "📝 Заявка",
     "🎫 Ожидает билеты", "🚗 Ожидает выезда", "🚀 В пути", "🏛 В военкомате",
     "🔍 На проверке", "🎗 Комиссован",
-}
+
 
 # Rich console with dark theme
-CONSOLE = Console(style=f"on {THEME['bgDeep']}", highlight=False)
+CONSOLE = Console(style=f'on {THEME["bgDeep"]}', highlight=False)
 
 # ─── GOOGLE SHEETS CLIENT ────────────────────────────────────────────────────
 
@@ -167,18 +168,18 @@ def init_full_system(client: gspread.Client) -> None:
         ("📝 Лог", ["Дата", "Сотрудник", "ФИО", "Ошибка"], 4, False),
     ]
     
-    existing = {ws.title: ws for ws in ss.worksheets()}
+    existing = {ws.title: ws for ws in ss.worksheets()
     
     with Progress() as progress:
         task = progress.add_task("[green]Создание листов...", total=len(sheets_config))
         for name, headers, cols, is_inst in sheets_config:
             if name not in existing:
                 ws = ss.add_worksheet(title=name, rows=DATA_ROWS, cols=50)
-                progress.console.print(f"[green]Создан: {name}[/green]")
+                progress.console.print(f"[green]Создан: {name[/green]")
             else:
                 ws = existing[name]
                 ws.clear()
-                progress.console.print(f"[yellow]Очищен: {name}[/yellow]")
+                progress.console.print(f"[yellow]Очищен: {name[/yellow]")
             
             if not is_inst and headers:
                 ws.append_row(headers)
@@ -216,7 +217,7 @@ def init_full_system(client: gspread.Client) -> None:
     # Fill employee sheet
     emp_ws = ss.worksheet("👥 Сотрудники")
     for emp in EMPLOYEES:
-        link = f"https://docs.google.com/spreadsheets/d/{emp['id']}"
+        link = f"https://docs.google.com/spreadsheets/d/{emp['id']"
         emp_ws.append_row([emp["name"], emp["id"], link, "", "", 0, "0%"])
     
     CONSOLE.print("[bold green]✅ Система готова! Добро пожаловать в Темный Офис.[/bold green]")
@@ -229,44 +230,29 @@ def setup_instruction_dark(ss: gspread.Spreadsheet) -> None:
     # Title
     sheet.update("B1:C1", [["CALLMONSTR V8.0"]])
     sheet.merge_cells("B1:C1")
-    sheet.format("B1:C1", {
-        "fontFamily": THEME["font"], "fontSize": 20, "fontWeight": "bold",
-        "backgroundColor": THEME["bgDeep"], "textFormat": {"foregroundColor": THEME["accent"]},
-        "horizontalAlignment": "center",
-    })
+    pass  # format removed
     
     # Subtitle
     sheet.update("B2:C2", [["ТЕМНЫЙ ТЕРМИНАЛ АДМИНА"]])
     sheet.merge_cells("B2:C2")
-    sheet.format("B2:C2", {
-        "fontFamily": THEME["font"], "fontSize": 12,
-        "backgroundColor": THEME["bgMid"], "textFormat": {"foregroundColor": THEME["textMain"]},
-        "horizontalAlignment": "center",
-    })
+    pass  # format removed
     
     blocks = [
         ("📞 УПРАВЛЕНИЕ ЛИДАМИ", 
-         f"Синхронизация: python callmonstr_v5.py sync\nШаттл НД: python callmonstr_v5.py shuffle (разгон лидов старше {SHUFFLE_DAYS} дней)"),
+         f"Синхронизация: python callmonstr_v5.py sync\nШаттл НД: python callmonstr_v5.py shuffle (разгон лидов старше {SHUFFLE_DAYS дней)"),
         ("📊 АНАЛИТИКА И ДИАГРАММЫ",
          "Статистика: python callmonstr_v5.py stats\nИстория: лист '📝 История' фиксирует смену статусов\nКонверсия: Подписанные / Дозвон"),
         ("🤖 АВТОМАТИЗАЦИЯ",
-         f"Шаттл НД: Авто-перенос лидов старше {SHUFFLE_DAYS} дней\nАрхивация: Отказы и НД старше {ARCHIVE_DAYS} дней\nБэкап: Каждые 24 часа автоматически"),
+         f"Шаттл НД: Авто-перенос лидов старше {SHUFFLE_DAYS дней\nАрхивация: Отказы и НД старше {ARCHIVE_DAYS дней\nБэкап: Каждые 24 часа автоматически"),
     ]
     
     for i, (title, desc) in enumerate(blocks):
         row = 4 + (i * 5)
-        sheet.update(f"B{row}", [[title]])
-        sheet.format(f"B{row}", {
-            "fontFamily": THEME["font"], "fontSize": 13, "fontWeight": "bold",
-            "backgroundColor": THEME["bgLight"], "textFormat": {"foregroundColor": THEME["accent"]},
-        })
-        sheet.update(f"C{row+1}", [[desc]])
-        sheet.merge_cells(f"C{row+1}:D{row+1}")
-        sheet.format(f"C{row+1}", {
-            "fontFamily": THEME["font"], "fontSize": 10,
-            "backgroundColor": THEME["bgMid"], "textFormat": {"foregroundColor": THEME["textMain"]},
-            "wrapText": True,
-        })
+        sheet.update(f"B{row", [[title]])
+        pass  # format removed
+        sheet.update(f"C{row+1", [[desc]])
+        sheet.merge_cells(f"C{row+1:D{row+1")
+        pass  # format removed
         sheet.row_dimensions[row] = 30
         sheet.row_dimensions[row+1] = 70
 
@@ -290,8 +276,8 @@ def sync_all_data(client: gspread.Client) -> None:
     active_data = []
     history_data = []
     errors = []
-    emp_counts = {emp["name"]: 0 for emp in EMPLOYEES}
-    emp_stats = {emp["name"]: {"total": 0, "nd": 0, "podp": 0, "komiss": 0, "ages": []} for emp in EMPLOYEES}
+    emp_counts = {emp["name"]: 0 for emp in EMPLOYEES
+    emp_stats = {emp["name"]: {"total": 0, "nd": 0, "podp": 0, "komiss": 0, "ages": [] for emp in EMPLOYEES
     
     # Clear old data
     def safe_last_row(ws):
@@ -331,7 +317,7 @@ def sync_all_data(client: gspread.Client) -> None:
                 
                 # Validation
                 if status and not is_valid_status(status):
-                    errors.append([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), emp["name"], fio, f"Невалидный статус: {status}"])
+                    errors.append([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), emp["name"], fio, f"Невалидный статус: {status"])
                     continue
                 
                 # Data for "Все лиды" (with employee name and sync date)
@@ -364,16 +350,16 @@ def sync_all_data(client: gspread.Client) -> None:
                 history_data.append([sync_date, emp["name"], fio, phone, "-", status, "System Sync"])
             
         except Exception as e:
-            errors.append([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), emp["name"], "-", f"Ошибка доступа: {e}"])
+            errors.append([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), emp["name"], "-", f"Ошибка доступа: {e"])
     
     # Batch write
     if all_leads_data:
         all_leads_sheet.append_rows(all_leads_data)
-        CONSOLE.print(f"[green]Все лиды: {len(all_leads_data)} записей[/green]")
+        CONSOLE.print(f"[green]Все лиды: {len(all_leads_data) записей[/green]")
     
     if active_data:
         active_sheet.append_rows(active_data)
-        CONSOLE.print(f"[green]Активные: {len(active_data)} записей[/green]")
+        CONSOLE.print(f"[green]Активные: {len(active_data) записей[/green]")
     
     if history_data:
         history_sheet.append_rows(history_data)
@@ -395,22 +381,22 @@ def sync_all_data(client: gspread.Client) -> None:
                         if s["total"] > 0:
                             pct = ((s["total"] - s["nd"]) / s["total"]) * 100
                             cell = emp_sheet.cell(idx, 7)
-                            cell.value = f"{pct:.1f}%"
+                            cell.value = f"{pct:.1f%"
                             # Color coding (from v8.0)
                             if pct > 70:
-                                cell.format({"textFormat": {"foregroundColor": THEME["accent"]}})
+                                pass  # format removed
                             elif pct > 40:
-                                cell.format({"textFormat": {"foregroundColor": THEME["warning"]}})
+                                pass  # format removed
                             else:
-                                cell.format({"textFormat": {"foregroundColor": THEME["accentAlt"]}})
+                                pass  # format removed
                         break
             except Exception as e:
-                CONSOLE.print(f"[red]Ошибка обновления сотрудника {name}: {e}[/red]")
+                CONSOLE.print(f"[red]Ошибка обновления сотрудника {name: {e[/red]")
     
     # Log errors
     if errors:
         log_sheet.append_rows(errors)
-        CONSOLE.print(f"[yellow]Ошибок записано: {len(errors)}[/yellow]")
+        CONSOLE.print(f"[yellow]Ошибок записано: {len(errors)[/yellow]")
     
     # Update stats
     update_stats(client, emp_stats)
@@ -418,7 +404,7 @@ def sync_all_data(client: gspread.Client) -> None:
     # Highlight duplicates
     highlight_duplicates(client, all_leads_sheet)
     
-    CONSOLE.print(f"[bold green]Синхронизация v8.0 завершена. Лидов: {len(all_leads_data)}[/bold green]")
+    CONSOLE.print(f"[bold green]Синхронизация v8.0 завершена. Лидов: {len(all_leads_data)[/bold green]")
 
 # ─── STATISTICS WITH SPARKLINES ────────────────────────────────────────────
 
@@ -440,7 +426,7 @@ def update_stats(client: gspread.Client, emp_stats: dict) -> None:
     
     for emp in EMPLOYEES:
         name = emp["name"]
-        s = emp_stats.get(name, {"total": 0, "nd": 0, "podp": 0, "komiss": 0, "ages": []})
+        s = emp_stats.get(name, {"total": 0, "nd": 0, "podp": 0, "komiss": 0, "ages": []}
         if s["total"] == 0:
             continue
         
@@ -466,13 +452,13 @@ def update_stats(client: gspread.Client, emp_stats: dict) -> None:
             pct_val = float(row[7].replace("%", ""))
             cell = sheet.cell(i, 8)  # % column
             if pct_val > 70:
-                cell.format({"textFormat": {"foregroundColor": THEME["accent"]}})
+                pass  # format removed
             elif pct_val > 40:
-                cell.format({"textFormat": {"foregroundColor": THEME["warning"]}})
+                pass  # format removed
             else:
-                cell.format({"textFormat": {"foregroundColor": THEME["accentAlt"]}})
+                pass  # format removed
         
-        CONSOLE.print(f"[green]Статистика обновлена для {len(rows)} сотрудников[/green]")
+        CONSOLE.print(f"[green]Статистика обновлена для {len(rows) сотрудников[/green]")
     
     CONSOLE.print("[bold green]Расчёт завершён[/bold green]")
 
@@ -496,7 +482,7 @@ def shuffle_old_nd(client: gspread.Client) -> None:
     moved = 0
     
     # Get employee lead counts
-    emp_counts = {emp["name"]: 0 for emp in EMPLOYEES}
+    emp_counts = {emp["name"]: 0 for emp in EMPLOYEES
     for row in data:
         if len(row) > 7:
             emp_name = row[7].strip()
@@ -534,12 +520,13 @@ def shuffle_old_nd(client: gspread.Client) -> None:
             # Update employee name (column 8, index 7)
             # Note: gspread uses 1-indexed rows
             try:
+            try:
                 sheet.update_cell(i + 2, 8, target_emp["name"])
                 moved += 1
             except Exception as e:
-                CONSOLE.print(f"[red]Ошибка перемещения строки {i+2}: {e}[/red]")
+                CONSOLE.print(f"[red]Ошибка перемещения строки {i+2: {e[/red]")
     
-    CONSOLE.print(f"[bold green]🚀 Шаттл завершен! Перенесено лидов: {moved}[/bold green]")
+    CONSOLE.print(f"[bold green]🚀 Шаттл завершен! Перенесено лидов: {moved[/bold green]")
 
 # ─── DUPLICATE HIGHLIGHTING ─────────────────────────────────────────────────
 
@@ -554,7 +541,7 @@ def highlight_duplicates(client: gspread.Client, sheet: gspread.Worksheet = None
         sheet = admin.worksheet("Все лиды")
     
     data = sheet.get_all_values()[1:]  # Skip header
-    seen = {}
+    seen = {
     duplicates = []
     
     for idx, row in enumerate(data, start=2):
@@ -564,16 +551,16 @@ def highlight_duplicates(client: gspread.Client, sheet: gspread.Worksheet = None
         phone = ''.join(c for c in (row[4] if len(row) > 4 else "") if c.isdigit())
         if not fio or not phone:
             continue
-        key = f"{fio}_{phone}"
+        key = f"{fio_{phone"
         if key in seen:
             duplicates.append((seen[key], idx))
         else:
             seen[key] = idx
     
     if duplicates:
-        CONSOLE.print(f"[yellow]Найдено дубликатов: {len(duplicates)}[/yellow]")
+        CONSOLE.print(f"[yellow]Найдено дубликатов: {len(duplicates)[/yellow]")
         for first, second in duplicates:
-            CONSOLE.print(f"[dim]Строки {first} и {second}[/dim]")
+            CONSOLE.print(f"[dim]Строки {first и {second[/dim]")
     else:
         CONSOLE.print("[green]Дубликатов не найдено[/green]")
 
@@ -586,33 +573,34 @@ def backup_all_tables(client: gspread.Client) -> None:
     """
     CONSOLE.print(Panel.fit("💾 БЭКАП ТАБЛИЦ", style=THEME["accent"]))
     try:
+    try:
         from googleapiclient.discovery import build
         from google.oauth2 import service_account
         
         creds = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE,
             scopes=["https://www.googleapis.com/auth/drive"]
-        )
         drive = build("drive", "v3", credentials=creds)
         
         # Find or create backup folder
         folder_name = "CallMonstr_Backups"
-        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'"
+        query = f"name='{folder_name' and mimeType='application/vnd.google-apps.folder'"
         results = drive.files().list(q=query, spaces="drive").execute()
         folders = results.get("files", [])
         if folders:
             folder_id = folders[0]["id"]
         else:
-            folder_metadata = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"}
+            folder_metadata = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"
             folder = drive.files().create(body=folder_metadata, fields="id").execute()
             folder_id = folder["id"]
-            CONSOLE.print(f"[green]Создана папка: {folder_name}[/green]")
+            CONSOLE.print(f"[green]Создана папка: {folder_name[/green]")
         
         # Backup each table
         for emp in EMPLOYEES:
             try:
+            try:
                 # Copy file
-                copy_metadata = {"name": f"Backup_{emp['name']}_{datetime.now().strftime('%d.MM.yy_%H-%M')}"}
+                copy_metadata = {"name": f"Backup_{emp['name']_{datetime.now().strftime('%d.MM.yy_%H-%M')"
                 copied = drive.files().copy(fileId=emp["id"], body=copy_metadata).execute()
                 # Move to folder
                 drive.files().update(
@@ -621,9 +609,9 @@ def backup_all_tables(client: gspread.Client) -> None:
                     removeParents="root",
                     fields="id, parents"
                 ).execute()
-                CONSOLE.print(f"[green]Бэкап {emp['name']} создан[/green]")
+                CONSOLE.print(f"[green]Бэкап {emp['name'] создан[/green]")
             except Exception as e:
-                CONSOLE.print(f"[red]Ошибка бэкапа {emp['name']}: {e}[/red]")
+                CONSOLE.print(f"[red]Ошибка бэкапа {emp['name']: {e[/red]")
         
         CONSOLE.print("[bold green]Бэкап завершён[/bold green]")
     except ImportError:
@@ -676,11 +664,5 @@ def main() -> None:
         sync_all_data(client)
         backup_all_tables(client)
         CONSOLE.print(Panel.fit("✅ ВСЕ ОПЕРАЦИИ ВЫПОЛНЕНЫ", style=THEME["accent"]))
-    elif cmd in ("help", "-h", "--help"):
-        show_menu()
-    else:
-        CONSOLE.print(f"[red]Неизвестная команда: {cmd}[/red]")
-        show_menu()
-
-if __name__ == "__main__":
+def admin_dashboard(client: gspread.Client) -> None:
     main()
