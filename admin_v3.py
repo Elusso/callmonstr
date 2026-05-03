@@ -9,6 +9,7 @@ import json
 import csv
 import random
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -23,12 +24,20 @@ except ImportError:
     print("Установи rich: pip install rich")
     exit(1)
 
+try:
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    GSPREAD_AVAILABLE = False
+
 # ── Config ────────────────────────────────────────────────────────────────────
 HOME = Path.home() / "callmonstr"
 DATA_DIR = HOME / "data"
 BACKUP_DIR = HOME / "backups"
 HISTORY_FILE = HOME / "history.json"
 CONFIG_FILE = HOME / "config.json"
+SERVICE_ACCOUNT = Path.home() / ".hermes" / "api_keys" / "callmonstr_service_account.json"
 
 # Valid statuses (Комиссован counts as dozvon)
 VALID_STATUSES = {
@@ -95,26 +104,68 @@ def display_table(data, title="CRM Data"):
         console.print(f"[dim]... ещё {len(data)-30} строк[/]")
 
 def cmd_sync(args):
-    """Sync with remote table (stub — replace with real API call)."""
+    """Sync with remote Google Sheet using service account."""
     cfg = load_config()
     header("Синхронизация")
-    if not cfg.get("table_url"):
-        console.print("[yellow]Не задан URL таблицы. Используй /set_table <url>[/]")
+    
+    if not GSPREAD_AVAILABLE:
+        console.print("[red]Не установлен gspread. Установи: pip install gspread oauth2client[/]")
         return
-    console.print(f"Синхронизация с {cfg['table_url']} ...")
-    # TODO: implement real sync (Google Sheets API / CSV export)
-    # For now, create sample data if none exists
-    if not list(DATA_DIR.glob("*")):
-        sample = [
-            {"id": "1", "name": "Иван", "status": "⚪ Новый", "phone": "+7911..."},
-            {"id": "2", "name": "Мария", "status": "✅ Подписан", "phone": "+7922..."},
-            {"id": "3", "name": "Петр", "status": "🎗️ Комиссован", "phone": "+7933..."},
-        ]
-        save_data(sample, "crm_current.csv")
-        console.print("[green]Создан пример данных[/]")
-    cfg["last_sync"] = datetime.now().isoformat()
-    save_config(cfg)
-    console.print("[bold green]Готово[/]")
+    
+    if not SERVICE_ACCOUNT.exists():
+        console.print(f"[red]Не найден файл сервисного аккаунта: {SERVICE_ACCOUNT}[/]")
+        return
+    
+    if not cfg.get("table_url") and not cfg.get("spreadsheet_id"):
+        console.print("[yellow]Не задан ID таблицы. Используй 'set_table <spreadsheet_id_or_url>'[/]")
+        return
+    
+    try:
+        # подключаемся через сервисный аккаунт
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            str(SERVICE_ACCOUNT),
+            ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        )
+        client = gspread.authorize(creds)
+        
+        # определяем ID таблицы
+        table_input = cfg.get("table_url") or cfg.get("spreadsheet_id")
+        # если это URL, извлекаем ID
+        if '/' in str(table_input):
+            import re
+            match = re.search(r'/d/([a-zA-Z0-9-_]+)', str(table_input))
+            if match:
+                spreadsheet_id = match.group(1)
+            else:
+                spreadsheet_id = table_input
+        else:
+            spreadsheet_id = table_input
+        
+        console.print(f"[dim]Подключение к таблице: {spreadsheet_id[:20]}...[/]")
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        worksheet = spreadsheet.sheet1  # первая страница
+        
+        # получаем все записи
+        rows = worksheet.get_all_records()
+        if not rows:
+            console.print("[yellow]Таблица пуста[/]")
+            return
+        
+        # сохраняем в локальный CSV
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        save_data(rows, "crm_current.csv")
+        
+        cfg["last_sync"] = datetime.now().isoformat()
+        cfg["spreadsheet_id"] = spreadsheet_id
+        save_config(cfg)
+        
+        console.print(f"[bold green]Синхронизировано {len(rows)} строк[/]")
+        log_history(f"sync {len(rows)} rows from sheets")
+        
+    except Exception as e:
+        console.print(f"[red]Ошибка синхронизации: {e}[/]")
+        console.print("[dim]Проверь, что таблица открыта для сервисного аккаунта:[/]")
+        console.print(f"[dim]{json.loads(SERVICE_ACCOUNT.read_text()).get('client_email')}[/]")
 
 def cmd_shuffle(args):
     """Shuffle rows randomly."""
