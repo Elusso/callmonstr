@@ -326,6 +326,7 @@ function showMenu() {
     "sync()      — Синхронизация лидов",
     "shuffle()   — Шаттл НД (>3 дней)",
     "stats()     — Статистика с графиками",
+    "archive()   — Архив старых НД",
     "backup()    — Бэкап в Google Drive",
     "dupes()     — Поиск дубликатов",
     "full()      — Полный цикл (init+sync+backup)",
@@ -349,6 +350,7 @@ function onOpen() {
     .addItem("Синхронизация", "syncAllData")
     .addItem("Шаттл НД", "shuffleOldND")
     .addItem("Статистика", "updateStats")
+    .addItem("Архив НД", "archiveOldND")
     .addItem("Бэкап", "backupAllTables")
     .addItem("Дубликаты", "highlightDuplicates")
     .addItem("Полный цикл", "fullCycle")
@@ -364,6 +366,7 @@ function main(args=[]) {
     case "sync": return syncAllData();
     case "shuffle": return shuffleOldND();
     case "stats": return updateStats();
+    case "archive": return archiveOldND();
     case "backup": return backupAllTables();
     case "dupes": return highlightDuplicates();
     case "full": return fullCycle();
