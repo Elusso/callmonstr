@@ -1,223 +1,232 @@
 /**
- * CallMonstr v1.0 — Vlad Personal Sheet
- * Синхронизация Tier-list с основным листом лидов
- *
- * Листы:
- * - "Все лиды" — основная таблица (вакансия, ФИО, телефон, статус, тир, комментарий)
- * - "Отработать" — НД лиды после шаттла (от других сотрудников)
- * - "Tier-list" — синхронизированный с "Все лиды", отсортирован по тиру, с датой напоминания
+ * CallMonstr v1.1 — Vlad Personal Sheet
+ * Двусторонняя синхронизация Tier-list с "Все лиды"
  *
  * Функции:
  * - initSystem() — создание всех листов
  * - syncTierList() — синхронизация "Tier-list" с "Все лиды"
- * - sortTierList() — сортировка по тиру (сверху ↓, 1→5)
- * - getReminderDate() — дата напоминания (через 3 дня от даты добавления)
+ * - sortTierList() — сортировка по тиру (1 → 5)
+ * - onEdit(e) — двусторонняя синхронизация при редактировании
+ * - setupTriggers() — создание time-based триггеров
  */
 
-const EMPLOYEE_ID = "1Lt9BmIVShNFserfYacxII6WjGPDn5ObNeiOo9z63oI8"; // Влад
-const ADMIN_SPREADSHEET_ID = "1AUCWikqIhAGxXKVvTm1SLJjmLoUh0Y_c7Sry8X8cXos";
+const EMPLOYEE_ID = "1Lt9BmIVShNFserfYacxII6WjGPDn5ObNeiOo9z63oI8";
+const MAIN_SHEET = "Все лиды";
+const TIER_SHEET = "Tier-list";
+const WORKED_SHEET = "Отработать";
 
-const MAIN_HEADERS = ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Тир", "Комментарий", "Дата напоминания"];
-const WORKED_COL_HEADERS = ["Дата", "Сотрудник", "ФИО", "Телефон", "Вакансия", "Город", "Статус", "Комментарий"];
-const TIER_LIST_HEADERS = ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Тир", "Комментарий", "Дата напоминания"];
-
-const VALID_TIERS = [1, 2, 3, 4, 5];
+const MAIN_COLS = { date: 0, vacancy: 1, city: 2, fio: 3, phone: 4, age: 5, status: 6, tier: 7, comment: 8, reminder: 9 };
+const TIER_COLS = { date: 0, vacancy: 1, city: 2, fio: 3, phone: 4, age: 5, status: 6, tier: 7, comment: 8, reminder: 9 };
 
 function initSystem() {
   const ss = SpreadsheetApp.openById(EMPLOYEE_ID);
   
-  // Check if "Все лиды" exists, create if not
-  let mainSheet = ss.getSheetByName("Все лиды");
+  // "Все лиды" — main sheet
+  let mainSheet = ss.getSheetByName(MAIN_SHEET);
   if (!mainSheet) {
-    mainSheet = ss.insertSheet("Все лиды");
-    mainSheet.appendRow(MAIN_HEADERS);
-    const r = mainSheet.getRange(1, 1, 1, MAIN_HEADERS.length);
-    r.setBackground("#1a1a1a").setFontColor("#00ff88").setFontFamily("Comfortaa").setFontWeight("bold").setFontSize(11);
+    mainSheet = ss.insertSheet(MAIN_SHEET);
+    mainSheet.appendRow(MAIN_HEADERS());
+    styleHeader(mainSheet.getRange(1, 1, 1, MAIN_HEADERS().length));
     mainSheet.setFrozenRows(1);
-    [120, 180, 140, 220, 140, 80, 120, 60, 200, 150].forEach((w, i) => { try { mainSheet.setColumnWidth(i + 1, w); } catch {} });
-    mainSheet.setRowHeight(1, 40);
+    setColumnWidths(mainSheet, [120, 180, 140, 220, 140, 80, 120, 60, 200, 150]);
   }
   
-  // Create "Отработать" sheet
-  let workedSheet = ss.getSheetByName("Отработать");
+  // "Отработать"
+  let workedSheet = ss.getSheetByName(WORKED_SHEET);
   if (!workedSheet) {
-    workedSheet = ss.insertSheet("Отработать");
-    workedSheet.appendRow(WORKED_COL_HEADERS);
-    const r = workedSheet.getRange(1, 1, 1, WORKED_COL_HEADERS.length);
-    r.setBackground("#1a1a1a").setFontColor("#00ff88").setFontFamily("Comfortaa").setFontWeight("bold").setFontSize(11);
+    workedSheet = ss.insertSheet(WORKED_SHEET);
+    workedSheet.appendRow(WORKED_HEADERS());
+    styleHeader(workedSheet.getRange(1, 1, 1, WORKED_HEADERS().length));
     workedSheet.setFrozenRows(1);
-    [120, 180, 220, 140, 180, 140, 120, 200].forEach((w, i) => { try { workedSheet.setColumnWidth(i + 1, w); } catch {} });
-    workedSheet.setRowHeight(1, 40);
+    setColumnWidths(workedSheet, [120, 180, 220, 140, 180, 140, 120, 200]);
   }
   
-  // Create "Tier-list" sheet
-  let tierSheet = ss.getSheetByName("Tier-list");
+  // "Tier-list"
+  let tierSheet = ss.getSheetByName(TIER_SHEET);
   if (!tierSheet) {
-    tierSheet = ss.insertSheet("Tier-list");
-    tierSheet.appendRow(TIER_LIST_HEADERS);
-    const r = tierSheet.getRange(1, 1, 1, TIER_LIST_HEADERS.length);
-    r.setBackground("#1a1a1a").setFontColor("#00ff88").setFontFamily("Comfortaa").setFontWeight("bold").setFontSize(11);
+    tierSheet = ss.insertSheet(TIER_SHEET);
+    tierSheet.appendRow(TIER_HEADERS());
+    styleHeader(tierSheet.getRange(1, 1, 1, TIER_HEADERS().length));
     tierSheet.setFrozenRows(1);
-    [120, 180, 140, 220, 140, 80, 120, 60, 200, 150].forEach((w, i) => { try { tierSheet.setColumnWidth(i + 1, w); } catch {} });
-    tierSheet.setRowHeight(1, 40);
+    setColumnWidths(tierSheet, [120, 180, 140, 220, 140, 80, 120, 60, 200, 150]);
   }
   
-  return "✅ Система создана: Все лиды, Отработать, Tier-list";
+  return "✅ Листы созданы: " + [MAIN_SHEET, WORKED_SHEET, TIER_SHEET].join(", ");
 }
 
 function syncTierList() {
   const ss = SpreadsheetApp.openById(EMPLOYEE_ID);
-  const mainSheet = ss.getSheetByName("Все лиды");
-  const tierSheet = ss.getSheetByName("Tier-list");
+  const mainSheet = ss.getSheetByName(MAIN_SHEET);
+  const tierSheet = ss.getSheetByName(TIER_SHEET);
   
-  if (!mainSheet || !tierSheet) {
-    return "❌ Не найдены листы. Выполните initSystem()";
-  }
+  if (!mainSheet || !tierSheet) return "❌ Не найдены листы";
   
-  // Get data from "Все лиды" (skip header)
   const mainData = mainSheet.getDataRange().getValues();
-  if (mainData.length <= 1) {
-    return "⏸ Нет данных в 'Все лиды'";
-  }
+  if (mainData.length <= 1) return "⏸ Нет данных в 'Все лиды'";
   
-  // Clear "Tier-list" except header
-  if (tierSheet.getLastRow() > 1) {
-    tierSheet.deleteRows(2, tierSheet.getLastRow() - 1);
-  }
+  // Clear tier sheet (preserve header)
+  if (tierSheet.getLastRow() > 1) tierSheet.deleteRows(2, tierSheet.getLastRow() - 1);
   
-  // Extract relevant columns from "Все лиды" and sync to "Tier-list"
   const newData = [];
   for (let i = 1; i < mainData.length; i++) {
     const row = mainData[i];
-    if (row.length < 9) continue; // Need: date, vacancy, city, fio, phone, age, status, tier, comment
+    if (row.length < 10) continue;
     
-    const tier = row[7] !== undefined ? row[7] : "";
-    const comment = row[8] !== undefined ? row[8] : "";
-    
-    // Build tier-list row from main
-    let tgt = [row[0], row[1], row[2], row[3], row[4], row[5], row[6], tier, comment];
-    
-    // Calculate reminder date (3 days from lead date)
-    const leadDate = row[0];
-    if (leadDate instanceof Date) {
-      const remDate = new Date(leadDate.getTime() + 3 * 24 * 60 * 60 * 1000);
+    // Find phone in tier sheet, check if exists
+    const phone = row[MAIN_COLS.phone];
+    if (phone) {
+      const tgt = [
+        row[MAIN_COLS.date], row[MAIN_COLS.vacancy], row[MAIN_COLS.city],
+        row[MAIN_COLS.fio], row[MAIN_COLS.phone], row[MAIN_COLS.age],
+        row[MAIN_COLS.status], row[MAIN_COLS.tier], row[MAIN_COLS.comment]
+      ];
+      
+      // Reminder date: today (not from lead date)
+      const remDate = new Date();
       tgt.push(remDate);
-    } else {
-      tgt.push("");
+      newData.push(tgt);
     }
-    
-    newData.push(tgt);
   }
   
   if (newData.length > 0) {
-    tierSheet.getRange(tierSheet.getLastRow() + 1, 1, newData.length, newData[0].length).setValues(newData);
-    
-    // Apply color coding for tiers (top to bottom)
-    for (let i = 0; i < newData.length; i++) {
-      const tier = parseInt(newData[i][7]);
-      const cell = tierSheet.getRange(i + 2, 8); // tier column
-      if (tier === 1) cell.setBackground("#ff3f34"); // red
-      else if (tier === 2) cell.setBackground("#ffa502"); // orange
-      else if (tier === 3) cell.setBackground("#ffff00"); // yellow
-      else if (tier === 4) cell.setBackground("#add8e6"); // light blue
-      else if (tier === 5) cell.setBackground("#39ff14"); // green
-      else cell.setBackground("#ffffff");
-    }
+    tierSheet.getRange(2, 1, newData.length, newData[0].length).setValues(newData);
+    applyTierColors(tierSheet, 2, newData.length);
   }
   
-  // Sort by tier (top to bottom: 1,2,3,4,5)
   sortTierList();
-  
-  return "✅ Синхронизация завершена. " + newData.length + " записей";
+  return "✅ Синхронизация: " + newData.length + " записей";
 }
 
 function sortTierList() {
   const ss = SpreadsheetApp.openById(EMPLOYEE_ID);
-  const tierSheet = ss.getSheetByName("Tier-list");
-  
+  const tierSheet = ss.getSheetByName(TIER_SHEET);
   if (!tierSheet) return "❌ Tier-list не найден";
-  if (tierSheet.getLastRow() <= 1) return "⏸ Нет данных для сортировки";
   
   const data = tierSheet.getDataRange().getValues();
+  if (data.length <= 1) return "⏸ Нет данных";
+  
   const header = data[0];
   const rows = data.slice(1);
   
-  // Sort by tier (numeric), then by date (descending)
   rows.sort((a, b) => {
-    const tierA = parseInt(a[7]) || 999;
-    const tierB = parseInt(b[7]) || 999;
-    if (tierA !== tierB) return tierA - tierB; // 1 before 2, etc.
+    const tierA = getTierNum(a[TIER_COLS.tier]);
+    const tierB = getTierNum(b[TIER_COLS.tier]);
+    if (tierA !== tierB) return tierA - tierB;
     // Same tier: newer date first
-    const dateA = new Date(a[0]).getTime() || 0;
-    const dateB = new Date(b[0]).getTime() || 0;
+    const dateA = parseDate(a[TIER_COLS.date]);
+    const dateB = parseDate(b[TIER_COLS.date]);
     return dateB - dateA;
   });
   
-  // Clear and rewrite sorted data
-  if (tierSheet.getLastRow() > 1) {
-    tierSheet.deleteRows(2, tierSheet.getLastRow() - 1);
-  }
-  
+  if (tierSheet.getLastRow() > 1) tierSheet.deleteRows(2, tierSheet.getLastRow() - 1);
   if (rows.length > 0) {
     tierSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
-    
-    // Re-apply tier colors after sort
-    for (let i = 0; i < rows.length; i++) {
-      const tier = parseInt(rows[i][7]);
-      const cell = tierSheet.getRange(i + 2, 8);
-      if (tier === 1) cell.setBackground("#ff3f34");
-      else if (tier === 2) cell.setBackground("#ffa502");
-      else if (tier === 3) cell.setBackground("#ffff00");
-      else if (tier === 4) cell.setBackground("#add8e6");
-      else if (tier === 5) cell.setBackground("#39ff14");
-    }
+    applyTierColors(tierSheet, 2, rows.length);
   }
   
-  return "⬆️ Сортировка по тиру завершена";
+  return "⬆️ Сортировка: " + rows.length + " записей";
+}
+
+function onEdit(e) {
+  try {
+    const sheet = e.range.getSheet();
+    const sheetName = sheet.getName();
+    
+    // Only "Все лиды" and "Tier-list" trigger sync
+    if (sheetName === MAIN_SHEET || sheetName === TIER_SHEET) {
+      const col = e.range.getColumn();
+      // Only TIER (8) and COMMENT (9) columns trigger sync
+      if (col === MAIN_COLS.tier + 1 || col === MAIN_COLS.comment + 1 || 
+          col === TIER_COLS.tier + 1 || col === TIER_COLS.comment + 1) {
+        
+        syncTierList();
+        return;
+      }
+    }
+  } catch (err) {
+    Logger.log("onEdit error: " + err);
+  }
 }
 
 function setupTriggers() {
-  // Delete existing triggers
+  // Remove existing triggers
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   
   // Daily sync at 9:00
-  ScriptApp.newTrigger("syncTierList").timeBased().atHour(9).everyDays(1).create();
+  ScriptApp.newTrigger("syncTierList")
+    .timeBased()
+    .atHour(9)
+    .everyDays(1)
+    .create();
+  
+  // On-edit trigger for bidirectional sync
+  ScriptApp.newTrigger("onEdit")
+    .forSpreadsheet(SpreadsheetApp.openById(EMPLOYEE_ID))
+    .onEdit()
+    .create();
   
   return "✅ Триггеры настроены";
+}
+
+// Helpers
+function MAIN_HEADERS() { return ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Тир", "Комментарий", "Дата напоминания"]; }
+function TIER_HEADERS() { return ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Тир", "Комментарий", "Дата напоминания"]; }
+function WORKED_HEADERS() { return ["Дата", "Сотрудник", "ФИО", "Телефон", "Вакансия", "Город", "Статус", "Комментарий"]; }
+
+function styleHeader(range) {
+  range.setBackground("#1a1a1a").setFontColor("#00ff88").setFontFamily("Comfortaa").setFontWeight("bold").setFontSize(11);
+}
+
+function setColumnWidths(sheet, widths) {
+  widths.forEach((w, i) => { try { sheet.setColumnWidth(i + 1, w); } catch {} });
+  if (sheet.getLastRow() >= 1) sheet.setRowHeight(1, 40);
+}
+
+function applyTierColors(sheet, startRow, rowCount) {
+  for (let r = 0; r < rowCount; r++) {
+    const tier = getTierNum(sheet.getRange(startRow + r, TIER_COLS.tier + 1).getValue());
+    const cell = sheet.getRange(startRow + r, TIER_COLS.tier + 1);
+    if (tier === 1) cell.setBackground("#ff3f34");
+    else if (tier === 2) cell.setBackground("#ffa502");
+    else if (tier === 3) cell.setBackground("#ffff00");
+    else if (tier === 4) cell.setBackground("#add8e6");
+    else if (tier === 5) cell.setBackground("#39ff14");
+    else cell.setBackground("#ffffff");
+  }
+}
+
+function getTierNum(val) {
+  if (!val) return 999;
+  const n = parseInt(val);
+  return isNaN(n) ? 999 : n;
+}
+
+function parseDate(val) {
+  if (!val) return 0;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
 function showMenu() {
   return [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "   Влад — CallMonstr v1.0",
+    "   Влад — CallMonstr v1.1",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "init()    — Создать листы",
-    "sync()    — Синхронизировать Tier-list",
-    "sort()    — Сортировать по тиру",
+    "init()  — Создать листы",
+    "sync()  — Синхронизировать Tier-list",
+    "sort()  — Сортировать по тиру",
     "triggers() — Настроить триггеры",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-  ].join("\n");
+  ].join("
+");
 }
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu("_ВЛАД v1.0")
+  ui.createMenu("_ВЛАД v1.1")
     .addItem("Создать листы", "initSystem")
     .addItem("Синхронизировать", "syncTierList")
     .addItem("Сортировать", "sortTierList")
     .addItem("Триггеры", "setupTriggers")
-    .addItem("Меню", "showMenu")
     .addToUi();
-}
-
-function main(args = []) {
-  if (!args || args.length === 0) return showMenu();
-  const cmd = (args[0] || "").toLowerCase();
-  switch (cmd) {
-    case "init": return initSystem();
-    case "sync": return syncTierList();
-    case "sort": return sortTierList();
-    case "triggers": return setupTriggers();
-    default: return showMenu();
-  }
 }
