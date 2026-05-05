@@ -1,12 +1,14 @@
 /**
- * ADMIN CRM — Office Молодость v3.0
+ * ADMIN CRM — Office Молодость v3.1
  * ==================================
+ * ПОЛНАЯ РАБОТОСПОСОБНАЯ ВЕРСИЯ
  * Сбор лидов со всех сотрудников, статистика, активные лиды.
  * Парсит A-H колонки (0-7): Дата, Вакансия, Город, ФИО, Телефон, Возраст, Статус, Заметки
  */
 
 const ADMIN_SPREADSHEET_ID = "1AUCWikqIhAGxXKVvTm1SLJjmLoUh0Y_c7Sry8X8cXos";
 
+// 5 СОТРУДНИКОВ (из памяти)
 const EMPLOYEES = [
   {name: "Тёмыч",  id: "1VCVAZhTl4cv9T1J4AyzknYqekMy6ZEymlQRkvOB4yJE"},
   {name: "Влад",   id: "1Lt9BmIVShNFserfYacxII6WjGPDn5ObNeiOo9z63oI8"},
@@ -21,20 +23,30 @@ const ACTIVES_SHEET = "Активные лиды";
 
 const ACTIVE_STATUSES = ["📝 Заявка", "🎫 Ожидает билеты", "🚗 Ожидает выезда", "🚀 В пути", "🏛️ В военкомате", "🔍 На проверке", "✅ ПОДПИСАН", "✅ Подписан"];
 
-// Получение лидов из одной таблицы
-function readEmployeeSheet(emp) {
+// БЕЗОПАСНОЕ获得ение данных
+function safeReadSheet(emp) {
   try {
     const ss = SpreadsheetApp.openById(emp.id);
     const sheet = ss.getSheets()[0];
-    if (!sheet) return [];
+    if (!sheet) {
+      Logger.log("⚠️ Лист не найден у " + emp.name);
+      return [];
+    }
     
     const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return [];
+    if (data.length <= 1) {
+      Logger.log("⚠️ Нет данных у " + emp.name);
+      return [];
+    }
     
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (r.length < 8) continue;
+      // Проверка на минимум 8 колонок
+      if (r.length < 8) {
+        Logger.log("⚠️ Слишком мало колонок у " + emp.name + " строка " + (i + 1));
+        continue;
+      }
       
       rows.push({
         name: emp.name,
@@ -48,9 +60,10 @@ function readEmployeeSheet(emp) {
         notes: r[7] || ""
       });
     }
+    Logger.log("✅ " + emp.name + ": " + rows.length + " лидов");
     return rows;
   } catch (e) {
-    Logger.log("Ошибка " + emp.name + ": " + e);
+    Logger.log("❌ Ошибка " + emp.name + ": " + e);
     return [];
   }
 }
@@ -59,10 +72,10 @@ function readEmployeeSheet(emp) {
 function getAllLeads() {
   let all = [];
   EMPLOYEES.forEach(emp => {
-    const leads = readEmployeeSheet(emp);
+    const leads = safeReadSheet(emp);
     all = all.concat(leads);
   });
-  Logger.log("Считано лидов: " + all.length);
+  Logger.log("📊 ВСЕГО ЛИДОВ: " + all.length);
   return all;
 }
 
@@ -70,131 +83,190 @@ function getAllLeads() {
 function initSystem() {
   const ss = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
   
-  const leadsSheet = ss.getSheetByName(LEADS_SHEET) || ss.insertSheet(LEADS_SHEET);
-  leadsSheet.clear();
-  leadsSheet.appendRow(["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]);
-  headerStyle(leadsSheet);
-  leadsSheet.setColumnWidths([50, 120, 100, 180, 120, 220, 140, 70, 120, 180]);
+  // "Все лиды"
+  let sheet = ss.getSheetByName(LEADS_SHEET);
+  if (!sheet) sheet = ss.insertSheet(LEADS_SHEET);
+  sheet.clear();
+  sheet.appendRow(["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]);
+  headerStyle(sheet, 10);
+  sheet.setColumnWidth(1, 50);
+  sheet.setColumnWidth(2, 120);
+  sheet.setColumnWidth(3, 100);
+  sheet.setColumnWidth(4, 180);
+  sheet.setColumnWidth(5, 120);
+  sheet.setColumnWidth(6, 220);
+  sheet.setColumnWidth(7, 140);
+  sheet.setColumnWidth(8, 70);
+  sheet.setColumnWidth(9, 120);
+  sheet.setColumnWidth(10, 180);
+  sheet.setFrozenRows(1);
   
-  const statsSheet = ss.getSheetByName(STATS_SHEET) || ss.insertSheet(STATS_SHEET);
-  statsSheet.clear();
-  statsSheet.appendRow(["Дата", "Всего", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]);
-  headerStyle(statsSheet);
+  // "Статистика"
+  sheet = ss.getSheetByName(STATS_SHEET);
+  if (!sheet) sheet = ss.insertSheet(STATS_SHEET);
+  sheet.clear();
+  sheet.appendRow(["Дата", "Всего", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]);
+  headerStyle(sheet, 7);
+  sheet.setColumnWidth(1, 120);
+  sheet.setColumnWidth(2, 80);
+  sheet.setColumnWidth(3, 80);
+  sheet.setColumnWidth(4, 80);
+  sheet.setColumnWidth(5, 90);
+  sheet.setColumnWidth(6, 90);
+  sheet.setColumnWidth(7, 80);
+  sheet.setFrozenRows(1);
   
-  const activesSheet = ss.getSheetByName(ACTIVES_SHEET) || ss.insertSheet(ACTIVES_SHEET);
-  activesSheet.clear();
-  activesSheet.appendRow(["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]);
-  headerStyle(activesSheet);
+  // "Активные лиды"
+  sheet = ss.getSheetByName(ACTIVES_SHEET);
+  if (!sheet) sheet = ss.insertSheet(ACTIVES_SHEET);
+  sheet.clear();
+  sheet.appendRow(["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]);
+  headerStyle(sheet, 7);
+  sheet.setColumnWidth(1, 50);
+  sheet.setColumnWidth(2, 120);
+  sheet.setColumnWidth(3, 100);
+  sheet.setColumnWidth(4, 220);
+  sheet.setColumnWidth(5, 140);
+  sheet.setColumnWidth(6, 120);
+  sheet.setColumnWidth(7, 180);
+  sheet.setFrozenRows(1);
   
   return "✅ Листы созданы: Все лиды, Статистика, Активные лиды";
 }
 
-function headerStyle(sheet) {
-  const range = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-  range.setBackground("#1a1a1a").setFontColor("#00ff88").setFontWeight("bold").setFontSize(12);
+// Стилизация заголовка
+function headerStyle(sheet, cols) {
+  const range = sheet.getRange(1, 1, 1, cols);
+  range.setBackground("#1a1a1a")
+       .setFontColor("#00ff88")
+       .setFontWeight("bold")
+       .setFontSize(12)
+       .setVerticalAlignment("middle");
 }
 
-// Синхронизация
+// Синхронизация - ГЛАВНАЯ ФУНКЦИЯ
 function syncAllSheets() {
   const ss = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
-  const allLeads = getAllLeads();
   
-  // 1. Все лиды
-  const leadsSheet = ss.getSheetByName(LEADS_SHEET);
-  if (!leadsSheet) return "❌ Не найден лист 'Все лиды'";
-  
-  leadsSheet.clearContents();
-  leadsSheet.appendRow(["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]);
-  headerStyle(leadsSheet);
-  
-  // Сортировка по дате (новее сверху)
-  allLeads.sort((a, b) => {
-    const dA = a.date ? new Date(a.date).getTime() : 0;
-    const dB = b.date ? new Date(b.date).getTime() : 0;
-    return dB - dA;
-  });
-  
-  if (allLeads.length > 0) {
-    const data = allLeads.map((l, i) => [
-      i + 1,
-      l.name,
-      l.date,
-      l.vacancy,
-      l.city,
-      l.fio,
-      l.phone,
-      l.age,
-      l.status,
-      l.notes
-    ]);
+  try {
+    const allLeads = getAllLeads();
     
-    const range = leadsSheet.getRange(2, 1, data.length, data[0].length);
-    range.setValues(data);
+    // 1. Все лиды - ЦЕНТРАЛЬНЫЙ ЛИСТ
+    const leadsSheet = ss.getSheetByName(LEADS_SHEET);
+    if (!leadsSheet) return "❌ Не найден лист 'Все лиды'";
     
-    // Чередующаяся заливка
-    for (let i = 0; i < data.length; i++) {
-      leadsSheet.getRange(2 + i, 1, 1, data[0].length).setBackground(i % 2 === 0 ? "#2d2d2d" : "#1a1a1a");
-    }
-  }
-  
-  // 2. Статистика
-  const statsSheet = ss.getSheetByName(STATS_SHEET);
-  if (statsSheet) {
-    statsSheet.clearContents();
-    statsSheet.appendRow(["Дата", "Всего", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]);
-    headerStyle(statsSheet);
+    leadsSheet.clearContents();
+    leadsSheet.appendRow(["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]);
+    headerStyle(leadsSheet, 10);
     
-    let total = allLeads.length;
-    let connected = 0, refused = 0, contact = 0, activeCount = 0;
-    
-    allLeads.forEach(l => {
-      const s = l.status || "";
-      if (s.includes("✅")) connected++;
-      if (s.includes("🔴") || s.includes("⚫") || s.includes("❌")) refused++;
-      if (s.includes("💬") || s.includes("🟡")) contact++;
-      if (ACTIVE_STATUSES.indexOf(s) >= 0) activeCount++;
+    // Сортировка по дате (новее сверху)
+    allLeads.sort((a, b) => {
+      const dA = a.date ? new Date(a.date).getTime() : 0;
+      const dB = b.date ? new Date(b.date).getTime() : 0;
+      return dB - dA;
     });
     
-    const successRate = total > 0 ? Math.round(100 * connected / total) : 0;
-    statsSheet.appendRow([new Date(), total, connected, refused, contact, activeCount, successRate + "%"]);
-  }
-  
-  // 3. Активные лиды
-  const activesSheet = ss.getSheetByName(ACTIVES_SHEET);
-  if (activesSheet) {
-    activesSheet.clearContents();
-    activesSheet.appendRow(["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]);
-    headerStyle(activesSheet);
-    
-    const actives = allLeads.filter(l => ACTIVE_STATUSES.indexOf(l.status || "") >= 0);
-    if (actives.length > 0) {
-      const data = actives.map((l, i) => [
-        i + 1,
-        l.name,
-        l.date,
-        l.fio,
-        l.phone,
-        l.status,
-        l.notes
-      ]);
+    if (allLeads.length > 0) {
+      const data = allLeads.map((l, i) => {
+        // защита от null/undefined
+        return [
+          i + 1,
+          l.name || "",
+          l.date || "",
+          l.vacancy || "",
+          l.city || "",
+          l.fio || "",
+          l.phone || "",
+          l.age || "",
+          l.status || "",
+          l.notes || ""
+        ];
+      });
       
-      const range = activesSheet.getRange(2, 1, data.length, data[0].length);
+      const range = leadsSheet.getRange(2, 1, data.length, 10);
       range.setValues(data);
       
+      // Чередующаяся заливка (тёмная тема)
       for (let i = 0; i < data.length; i++) {
-        activesSheet.getRange(2 + i, 1, 1, data[0].length).setBackground(i % 2 === 0 ? "#2d2d2d" : "#1a1a1a");
+        leadsSheet.getRange(2 + i, 1, 1, 10).setBackground(i % 2 === 0 ? "#2d2d2d" : "#1a1a1a");
       }
     }
+    
+    // 2. Статистика
+    const statsSheet = ss.getSheetByName(STATS_SHEET);
+    if (statsSheet) {
+      statsSheet.clearContents();
+      statsSheet.appendRow(["Дата", "Всего", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]);
+      headerStyle(statsSheet, 7);
+      
+      let total = allLeads.length;
+      let connected = 0, refused = 0, contact = 0, activeCount = 0;
+      
+      allLeads.forEach(l => {
+        const s = l.status || "";
+        if (s.includes("✅")) connected++;
+        if (s.includes("🔴") || s.includes("⚫") || s.includes("❌")) refused++;
+        if (s.includes("💬") || s.includes("🟡")) contact++;
+        if (ACTIVE_STATUSES.indexOf(s) >= 0) activeCount++;
+      });
+      
+      const successRate = total > 0 ? Math.round(100 * connected / total) : 0;
+      statsSheet.appendRow([new Date(), total, connected, refused, contact, activeCount, successRate + "%"]);
+      
+      // границы
+      statsSheet.getRange(1, 1, 2, 7).setBorder(true, true, true, true, true, true);
+    }
+    
+    // 3. Активные лиды
+    const activesSheet = ss.getSheetByName(ACTIVES_SHEET);
+    if (activesSheet) {
+      activesSheet.clearContents();
+      activesSheet.appendRow(["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]);
+      headerStyle(activesSheet, 7);
+      
+      const actives = allLeads.filter(l => ACTIVE_STATUSES.indexOf(l.status || "") >= 0);
+      if (actives.length > 0) {
+        const data = actives.map((l, i) => {
+          return [
+            i + 1,
+            l.name || "",
+            l.date || "",
+            l.fio || "",
+            l.phone || "",
+            l.status || "",
+            l.notes || ""
+          ];
+        });
+        
+        const range = activesSheet.getRange(2, 1, data.length, 7);
+        range.setValues(data);
+        
+        // Чередующаяся заливка
+        for (let i = 0; i < data.length; i++) {
+          activesSheet.getRange(2 + i, 1, 1, 7).setBackground(i % 2 === 0 ? "#2d2d2d" : "#1a1a1a");
+        }
+        
+        // границы
+        range.setBorder(true, true, true, true, true, true);
+      }
+    }
+    
+    return "✅ Синхронизация завершена:\n✅ Сотрудников: " + EMPLOYEES.length + "\n✅ Всего лидов: " + allLeads.length;
+  } catch (e) {
+    Logger.log("❗ Ошибка syncAllSheets: " + e);
+    return "❌ Ошибка: " + e;
   }
-  
-  return "✅ Синхронизация: " + allLeads.length + " лидов";
 }
 
-// Меню
+// Меню в Google Sheets
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu("_Офис Молодость Admin v3.0")
-    .addItem("Создать листы", "initSystem")
-    .addItem("Синхронизировать", "syncAllSheets")
-    .addToUi();
+  try {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu("_Офис Молодость Admin v3.1")
+      .addItem("Создать листы", "initSystem")
+      .addItem("Синхронизироватьall", "syncAllSheets")
+      .addToUi();
+  } catch (e) {
+    Logger.log("Меню не создано: " + e);
+  }
 }
