@@ -1,3 +1,6 @@
-id,name,status,phone,role
-1,Влад,✅ Подписан,+7911...,admin
-2,Друг,🎗️ Комиссован,+7922...,user
+id,name,phone,email,license,vehicle,status,tier
+1,Влад,+7911...,vlad@example.com,A1234567,BMW X5,✅ Подписан,SS
+2,Друг,+7922...,friend@example.com,B2345678,Toyota Camry,🎗️ Комиссован,SS
+3,Иван,+7933...,ivan@example.com,C3456789,Honda Civic,🟡 ПЕРЕЗВОНИТЬ,A
+4,Мария,+7944...,maria@example.com,D4567890,Kia Rio,🔴 НД,S
+5,Алексей,+7955...,alexey@example.com,E5678901,Lexus RX,💬 СВЯЗЬ МЕССЕНДЖЕР,A

@@ -1,53 +1,100 @@
 #!/usr/bin/env node
-/**
- * callmonstr_v9_gas.js — Генератор GAS скрипта для Google Sheets
- */
-
-const fs = require('fs');
-const path = require('path');
-
-const CONFIG = {
-  theme: {
-    bgDeep: "#1a1a1a",
-    bgMid: "#2d2d2d",
-    accent: "#00ff88",
-    accentRed: "#ff3f34",
-    warning: "#ffa502",
-    textMain: "#e0e0e0",
-    font: "Comfortaa",
-    fontSize: 14,
-    rowHeight: 30,
-    headerHeight: 40
-  },
-  tabs: {
-    instruction: "📒 Инструкция",
-    allLeads: "Всё лиды",
-    active: "🎯 Активные",
-    employees: "👥 Сотрудники",
-    stats: "📊 Статистика",
-    history: "📝 История",
-    archive: "🗄 Архив",
-    log: "📝 Лог"
-  },
-  columns: {
-    allLeads: ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"],
-    active: ["Дата", "Сотрудник", "ФИО", "Телефон", "Вакансия", "Город", "Статус", "Выезд", "Приезд", "Заметки"],
-    employees: ["Сотрудник", "ID", "Ссылка", "Статус", "Дата", "Лидов", "Дозвон %"],
-    stats: ["Период", "Сотрудник", "Всего", "Дозвон", "НД", "Подписано", "Комиссовано", "%", "Возраст", "График"]
-  },
-  statuses: {
-    valid: ["⚪️ Новый", "🔴 НД", "🤔 ДУМ", "🟡 ПЕРЕЗВОНИТЬ", "💬 СВЯЗЬ МЕССЕНДЖЕР", "✅ ПОДПИСАН", "✅ Подписан", "⚫️ ОТКАЗ", "❌ Отказ", "📝 Заявка", "🎫 Ожидает билеты", "🚗 Ожидает выезда", "🚀 В пути", "🏛 В военкомате", "🔍 На проверке", "🎗️ Комиссован", "🎗 Комиссован"]
-  },
-  sparklines: {
-    chars: "▁▂▃▄▅▆▇█"
-  }
-};
-
-const SCRIPT = `#!/usr/bin/env node
 // callmonstr_v9_gas.js - Generated Google Apps Script
 // Dark Theme: #1a1a1a, Neon Green #00ff88, Comfortaa font
 
-const CONFIG = ${JSON.stringify(CONFIG, null, 2)};
+const CONFIG = {
+  "theme": {
+    "bgDeep": "#1a1a1a",
+    "bgMid": "#2d2d2d",
+    "accent": "#00ff88",
+    "accentRed": "#ff3f34",
+    "warning": "#ffa502",
+    "textMain": "#e0e0e0",
+    "font": "Comfortaa",
+    "fontSize": 14,
+    "rowHeight": 30,
+    "headerHeight": 40
+  },
+  "tabs": {
+    "instruction": "📒 Инструкция",
+    "allLeads": "Всё лиды",
+    "active": "🎯 Активные",
+    "employees": "👥 Сотрудники",
+    "stats": "📊 Статистика",
+    "history": "📝 История",
+    "archive": "🗄 Архив",
+    "log": "📝 Лог"
+  },
+  "columns": {
+    "allLeads": [
+      "Дата",
+      "Вакансия",
+      "Город",
+      "ФИО",
+      "Телефон",
+      "Возраст",
+      "Статус",
+      "Заметки"
+    ],
+    "active": [
+      "Дата",
+      "Сотрудник",
+      "ФИО",
+      "Телефон",
+      "Вакансия",
+      "Город",
+      "Статус",
+      "Выезд",
+      "Приезд",
+      "Заметки"
+    ],
+    "employees": [
+      "Сотрудник",
+      "ID",
+      "Ссылка",
+      "Статус",
+      "Дата",
+      "Лидов",
+      "Дозвон %"
+    ],
+    "stats": [
+      "Период",
+      "Сотрудник",
+      "Всего",
+      "Дозвон",
+      "НД",
+      "Подписано",
+      "Комиссовано",
+      "%",
+      "Возраст",
+      "График"
+    ]
+  },
+  "statuses": {
+    "valid": [
+      "⚪️ Новый",
+      "🔴 НД",
+      "🤔 ДУМ",
+      "🟡 ПЕРЕЗВОНИТЬ",
+      "💬 СВЯЗЬ МЕССЕНДЖЕР",
+      "✅ ПОДПИСАН",
+      "✅ Подписан",
+      "⚫️ ОТКАЗ",
+      "❌ Отказ",
+      "📝 Заявка",
+      "🎫 Ожидает билеты",
+      "🚗 Ожидает выезда",
+      "🚀 В пути",
+      "🏛 В военкомате",
+      "🔍 На проверке",
+      "🎗️ Комиссован",
+      "🎗 Комиссован"
+    ]
+  },
+  "sparklines": {
+    "chars": "▁▂▃▄▅▆▇█"
+  }
+};
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -152,8 +199,3 @@ function isPodpisan(status) {
 function isKomissovan(status) {
   return status.toLowerCase().includes("комиссован");
 }
-`;
-
-const dest = path.join(__dirname, 'callmonstr_v9_gas.gs');
-fs.writeFileSync(dest, SCRIPT, 'utf8');
-console.log('✅ Generated:', dest);
