@@ -1,15 +1,16 @@
 /**
- * ADMIN CRM — Офис Молодость (v2.1)
+ * ADMIN CRM — Офис Молодость (v2.2)
  * =================================
  * Главная CRM для владельца офиса.
  * Считывает лиды со всех сотрудников по фиксированной структуре:
  *   A=Дата, B=Вакансия, C=Город, D=ФИО, E=Телефон, F=Возраст, G=Статус, H=Заметки
  * 
  * Листы:
- * - Все лиды: все лиды, отсортированные по дате (новее сверху)
- * - Тиеры: сортировка по тиерам (SS/S/A) для удобства анализа
+ * - Все лиды: все лиды, отсортированные по дате (новее сверху), красивое оформление
  * - Статистика: сводные показатели по всему офису
  * - Активные лиды: только "в активной работе" (в пути, ожидает выезда и т.д.)
+ * 
+ * ВАЖНО: ТИЕРАВ НЕТ! Это личное у Влада, не считываем!
  */
 
 // Global Config
@@ -20,11 +21,10 @@ const THEME = {
   bgMid: "#2d2d2d",
   accent: "#00ff88",
   text: "#e0e0e0",
-  textHeader: "#ffffff",
   font: "Comfortaa"
 };
 
-// Сотрудники (Влад наравне с другими)
+// Сотрудники
 const EMPLOYEES = [
   {name: "Тёмыч",  id: "1VCVAZhTl4cv9T1J4AyzknYqekMy6ZEymlQRkvOB4yJE"},
   {name: "Влад",   id: "1Lt9BmIVShNFserfYacxII6WjGPDn5ObNeiOo9z63oI8"},
@@ -35,42 +35,48 @@ const EMPLOYEES = [
 
 // Константы листов
 const LEADS_SHEET = "Все лиды";
-const TIER_SHEET = "Тиеры";
 const STATS_SHEET = "Статистика";
 const ACTIVES_SHEET = "Активные лиды";
 
-// Статусы → тиер (для аналитики)
-const STATUS_TO_TIER = {
-  "✅ Подписанные": "SS", "✅ Подписан": "SS", "✅ ПОДПИСАН": "SS", "🎗️ Комиссован": "SS",
-  "🔴 НД": "S", "🤔 ДУМ": "S", "⚫ ОТКАЗ": "S", "❌ Отказ": "S",
-  "🟡 ПЕРЕЗВОНИТЬ": "A", "💬 СВЯЗЬ МЕССЕНДЖЕР": "A", "🎫 Ожидает билеты": "A",
-  "🚗 Ожидает выезда": "A", "🚀 В пути": "A", "🏛️ В военкомате": "A", "🔍 На проверке": "A", "📝 Заявка": "A"
-};
-
-function getTier(status) {
-  if (!status) return "A";
-  return STATUS_TO_TIER[status.trim()] || "A";
-}
-
-// Индексы колонок (0-based): A=0, B=1, ..., H=7
+// Индексы колонок (0-based)
 const COLS = { date: 0, vacancy: 1, city: 2, fio: 3, phone: 4, age: 5, status: 6, notes: 7 };
 
 // Заголовки
 function LEADS_HEADER() { return ["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]; }
-function TIER_HEADER() { return ["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Статус", "Тир"]; }
-function STATS_HEADER() { return ["Дата", "Всего", "T1 (SS)", "T2 (S)", "T3 (A)", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]; }
+function STATS_HEADER() { return ["Дата", "Всего", "Подписано", "Отказ", "Свяьь", "Активные", "Успех %"]; }
 function ACTIVES_HEADER() { return ["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]; }
 
 // Статусы "в активной работе"
 const ACTIVE_STATUSES = ["🚀 В пути", "🚗 Ожидает выезда", "🏛️ В военкомате", "🔍 На проверке"];
 
-// Стилизация (темная тема +Comfortaa)
+// Стилизация (темная тема, чередующаяся заливка)
 function styleHeader(range) {
-  range.setBackground(THEME.bgDeep)
-       .setFontColor(THEME.accent)
-       .setFontFamily(THEME.font)
+  range.setBackground("#1a1a1a")
+       .setFontColor("#00ff88")
+       .setFontFamily("Comfortaa")
        .setFontWeight("bold")
        .setFontSize(12);
+}
+
+function styleCell(row, col, isHeader = false) {
+  const cell = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName(LEADS_SHEET)
+    .getRange(row, col);
+  
+  if (isHeader) {
+    cell.setBackground("#1a1a1a")
+        .setFontColor("#00ff88")
+        .setFontWeight("bold");
+  } else {
+    // чередующаяся заливка
+    const mod = (row - 2) % 2;
+    if (mod === 0) {
+      cell.setBackground("#2d2d2d");
+    } else {
+      cell.setBackground("#1a1a1a");
+    }
+    cell.setFontColor("#e0e0e0");
+  }
 }
 
 function setColumnsWidth(sheet, widths) {
@@ -78,17 +84,11 @@ function setColumnsWidth(sheet, widths) {
   if (sheet.getLastRow() >= 1) sheet.setRowHeight(1, 40);
 }
 
-function tierColor(cell, tier) {
-  if (tier === "SS") cell.setBackground("#ff3f34");
-  else if (tier === "S") cell.setBackground("#ffa502");
-  else if (tier === "A") cell.setBackground("#ffff00");
-  else cell.setBackground("#ffffff");
-}
-
 // Получение данных из таблицы сотрудника
 function readEmployeeSheet(emp) {
   try {
-    const sheet = SpreadsheetApp.openById(emp.id).getSheets()[0];
+    const ss = SpreadsheetApp.openById(emp.id);
+    const sheet = ss.getSheets()[0];
     if (!sheet) return [];
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) return [];
@@ -96,11 +96,7 @@ function readEmployeeSheet(emp) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      // Берём только A-H (0-7)
       if (r.length < 8) continue;
-      
-      const status = r[COLS.status] || "";
-      const tier = getTier(status);
       
       rows.push({
         name: emp.name,
@@ -110,8 +106,7 @@ function readEmployeeSheet(emp) {
         fio: r[COLS.fio] || "",
         phone: r[COLS.phone] || "",
         age: r[COLS.age] || "",
-        status: status,
-        tier: tier,
+        status: r[COLS.status] || "",
         notes: r[COLS.notes] || ""
       });
     }
@@ -145,15 +140,7 @@ function initSystem() {
     styleHeader(sh.getRange(1, 1, 1, LEADS_HEADER().length));
     sh.setFrozenRows(1);
     setColumnsWidth(sh, [50, 120, 100, 180, 120, 220, 140, 70, 120, 180]);
-  }
-  
-  // "Тиеры"
-  if (!sheets.includes(TIER_SHEET)) {
-    const sh = ss.insertSheet(TIER_SHEET);
-    sh.appendRow(TIER_HEADER());
-    styleHeader(sh.getRange(1, 1, 1, TIER_HEADER().length));
-    sh.setFrozenRows(1);
-    setColumnsWidth(sh, [50, 120, 100, 180, 120, 220, 140, 120, 60]);
+    Logger.log("✅ Лист 'Все лиды' создан");
   }
   
   // "Статистика"
@@ -162,7 +149,8 @@ function initSystem() {
     sh.appendRow(STATS_HEADER());
     styleHeader(sh.getRange(1, 1, 1, STATS_HEADER().length));
     sh.setFrozenRows(1);
-    setColumnsWidth(sh, [120, 80, 70, 70, 70, 90, 90, 90, 80, 70]);
+    setColumnsWidth(sh, [120, 80, 90, 90, 90, 80, 80]);
+    Logger.log("✅ Лист 'Статистика' создан");
   }
   
   // "Активные лиды"
@@ -172,9 +160,10 @@ function initSystem() {
     styleHeader(sh.getRange(1, 1, 1, ACTIVES_HEADER().length));
     sh.setFrozenRows(1);
     setColumnsWidth(sh, [50, 120, 100, 220, 140, 120, 180]);
+    Logger.log("✅ Лист 'Активные лиды' создан");
   }
   
-  return "✅ Листы созданы: Все лиды, Тиеры, Статистика, Активные лиды";
+  return "✅ Листы созданы: Все лиды, Статистика, Активные лиды";
 }
 
 // Синхронизация и сбор лидов
@@ -189,14 +178,14 @@ function syncAllSheets() {
   // очистка
   if (leadsSheet.getLastRow() > 1) leadsSheet.deleteRows(2, leadsSheet.getLastRow() - 1);
   
+  // сортировка по дате (новее сверху)
+  allLeads.sort((a, b) => {
+    const dA = Date.parse(a.date) || 0;
+    const dB = Date.parse(b.date) || 0;
+    return dB - dA;
+  });
+  
   if (allLeads.length > 0) {
-    // Сортировка: новее датой сверху
-    allLeads.sort((a, b) => {
-      const dA = Date.parse(a.date) || 0;
-      const dB = Date.parse(b.date) || 0;
-      return dB - dA; // убывание
-    });
-    
     const data = allLeads.map((l, i) => [
       i + 1,
       l.name,
@@ -209,44 +198,36 @@ function syncAllSheets() {
       l.status,
       l.notes
     ]);
-    leadsSheet.getRange(2, 1, data.length, data[0].length).setValues(data);
-  }
-  
-  // 2. "Тиеры" — сортировка по тиерам (SS → S → A)
-  const tierSheet = ss.getSheetByName(TIER_SHEET);
-  if (tierSheet) {
-    if (tierSheet.getLastRow() > 1) tierSheet.deleteRows(2, tierSheet.getLastRow() - 1);
     
-    if (allLeads.length > 0) {
-      // Сортировка по тиеру (SS=1, S=2, A=3)
-      const sorted = allLeads.slice().sort((a, b) => {
-        const rankA = a.tier === "SS" ? 1 : a.tier === "S" ? 2 : 3;
-        const rankB = b.tier === "SS" ? 1 : b.tier === "S" ? 2 : 3;
-        if (rankA !== rankB) return rankA - rankB;
-        // внутри одного тира — по дате (новее сверху)
-        const dA = Date.parse(a.date) || 0;
-        const dB = Date.parse(b.date) || 0;
-        return dB - dA;
-      });
-      
-      const data = sorted.map((l, i) => [
-        i + 1,
-        l.name,
-        l.date,
-        l.vacancy,
-        l.city,
-        l.fio,
-        l.phone,
-        l.status,
-        l.tier
-      ]);
-      tierSheet.getRange(2, 1, data.length, data[0].length).setValues(data);
-      // coloring tiers
-      tierSheet.getRange(2, 9, data.length, 1).getCellList().forEach(c => tierColor(c, c.getValue()));
+    const range = leadsSheet.getRange(2, 1, data.length, data[0].length);
+    range.setValues(data);
+    
+    // применяем стили
+    const startRow = 2;
+    const rowCount = data.length;
+    const colCount = data[0].length;
+    
+    // стилизация заголовков
+    const headerRange = leadsSheet.getRange(1, 1, 1, colCount);
+    headerRange.setBackground("#1a1a1a");
+    headerRange.setFontColor("#00ff88");
+    headerRange.setFontWeight("bold");
+    
+    // чередующаяся заливка
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < colCount; c++) {
+        const cell = leadsSheet.getRange(startRow + r, c + 1);
+        const isEven = (r % 2 === 0);
+        cell.setBackground(isEven ? "#2d2d2d" : "#1a1a1a");
+        cell.setFontColor("#e0e0e0");
+      }
     }
+    
+    // границы для всех ячеек
+    range.setBorder(true, true, true, true, true, true);
   }
   
-  // 3. "Статистика"
+  // 2. "Статистика"
   const statsSheet = ss.getSheetByName(STATS_SHEET);
   if (statsSheet) {
     statsSheet.clear();
@@ -256,23 +237,13 @@ function syncAllSheets() {
     // Подсчёт статистики
     const today = new Date();
     let total = allLeads.length;
-    let ssCount = 0, sCount = 0, aCount = 0;
-    let connected = 0, refused = 0, contact = 0;
-    let activesCount = 0;
+    let connected = 0, refused = 0, contact = 0, activesCount = 0;
     
     for (let i = 0; i < allLeads.length; i++) {
       const st = allLeads[i].status;
-      const tier = allLeads[i].tier;
-      
-      if (tier === "SS") ssCount++;
-      else if (tier === "S") sCount++;
-      else aCount++;
-      
       if (st.includes("✅")) connected++;
       if (st.includes("🔴") || st.includes("⚫") || st.includes("❌")) refused++;
       if (st.includes("💬") || st.includes("🟡")) contact++;
-      
-      // Активные
       if (ACTIVE_STATUSES.indexOf(st) >= 0) activesCount++;
     }
     
@@ -281,9 +252,6 @@ function syncAllSheets() {
     statsSheet.appendRow([
       today,
       total,
-      ssCount,
-      sCount,
-      aCount,
       connected,
       refused,
       contact,
@@ -292,10 +260,10 @@ function syncAllSheets() {
     ]);
     
     // границы
-    statsSheet.getRange(1, 1, 2, 10).setBorder(true, true, true, true, true, true);
+    statsSheet.getRange(1, 1, 2, 7).setBorder(true, true, true, true, true, true);
   }
   
-  // 4. "Активные лиды" — только "в активной работе"
+  // 3. "Активные лиды" — только "в активной работе"
   const activesSheet = ss.getSheetByName(ACTIVES_SHEET);
   if (activesSheet) {
     if (activesSheet.getLastRow() > 1) activesSheet.deleteRows(2, activesSheet.getLastRow() - 1);
@@ -313,44 +281,31 @@ function syncAllSheets() {
         l.status,
         l.notes
       ]);
-      activesSheet.getRange(2, 1, data.length, data[0].length).setValues(data);
+      
+      const range = activesSheet.getRange(2, 1, data.length, data[0].length);
+      range.setValues(data);
+      
+      // стили
+      const headerRange = activesSheet.getRange(1, 1, 1, data[0].length);
+      headerRange.setBackground("#1a1a1a");
+      headerRange.setFontColor("#00ff88");
+      headerRange.setFontWeight("bold");
+      
+      // чередующаяся заливка
+      for (let r = 0; r < data.length; r++) {
+        for (let c = 0; c < data[0].length; c++) {
+          const cell = activesSheet.getRange(2 + r, c + 1);
+          const isEven = (r % 2 === 0);
+          cell.setBackground(isEven ? "#2d2d2d" : "#1a1a1a");
+          cell.setFontColor("#e0e0e0");
+        }
+      }
+      
+      range.setBorder(true, true, true, true, true, true);
     }
   }
   
-  return "✅ Синхронизация: " + allLeads.length + " лидов, " + activesCount(allLeads) + " активных";
-}
-
-function activesCount(leads) {
-  return leads.filter(l => ACTIVE_STATUSES.indexOf(l.status) >= 0).length;
-}
-
-// Сортировка по тиерам (для обновления только листа "Тиеры")
-function sortTierList() {
-  const ss = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(TIER_SHEET);
-  if (!sheet) return "❌ Лист 'Тиеры' не найден";
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return "⏸ Нет данных";
-  
-  const rows = data.slice(1);
-  
-  rows.sort((a, b) => {
-    const rankA = a[8] === "SS" ? 1 : a[8] === "S" ? 2 : 3;
-    const rankB = b[8] === "SS" ? 1 : b[8] === "S" ? 2 : 3;
-    if (rankA !== rankB) return rankA - rankB;
-    const dateA = Date.parse(a[2]) || 0;
-    const dateB = Date.parse(b[2]) || 0;
-    return dateB - dateA;
-  });
-  
-  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
-    sheet.getRange(2, 9, rows.length, 1).getCellList().forEach(c => tierColor(c, c.getValue()));
-  }
-  
-  return "⬆️ Сортировка Тиеров: " + rows.length + " записей";
+  return "✅ Синхронизация: " + allLeads.length + " лидов";
 }
 
 // Выгрузка JSON
@@ -364,10 +319,9 @@ function exportJSON() {
 // Меню
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu("_Офис Молодость Admin v2.1")
+  ui.createMenu("_Офис Молодость Admin v2.2")
     .addItem("Создать листы", "initSystem")
     .addItem("Синхронизировать все таблицы", "syncAllSheets")
-    .addItem("Сортировать Тиеры", "sortTierList")
     .addItem("Экспорт JSON", "exportJSON")
     .addToUi();
 }
