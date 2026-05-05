@@ -1,9 +1,10 @@
 /**
- * ADMIN CRM — Office Молодость v4.0
- * Полностью рабочая версия с дизайном и статистикой
+ * ADMIN CRM — Office Молодость v6.0
+ * Исправленная версия на базе doc_edda4b78dc26_script.json
  */
 
 const ADMIN_SPREADSHEET_ID = "1AUCWikqIhAGxXKVvTm1SLJjmLoUh0Y_c7Sry8X8cXos";
+const DATA_ROWS = 1000;
 
 const EMPLOYEES = [
   {name: "Тёмыч",  id: "1VCVAZhTl4cv9T1J4AyzknYqekMy6ZEymlQRkvOB4yJE"},
@@ -13,62 +14,241 @@ const EMPLOYEES = [
   {name: "Денишк", id: "1pYRyigxMNSmrqr92RZ9-I5rbehErgX-PSiRbhn4Z4qU"}
 ];
 
-const LEADS_SHEET = "Все лиды";
-const STATS_SHEET = "Статистика";
-const ACTIVES_SHEET = "Активные лиды";
+const ADMIN_THEME = {
+  headerBg: "#1a1a1a",
+  headerText: "#00ff88",
+  evenBg: "#2d2d2d",
+  oddBg: "#1a1a1a",
+  bodyText: "#e0e0e0",
+  border: "#3a3a3a"
+};
 
-const ACTIVE_STATUSES = ["📝 Заявка", "🎫 Ожидает билеты", "🚗 Ожидает выезда", "🚀 В пути", "🏛️ В военкомате", "🔍 На проверке", "✅ ПОДПИСАН", "✅ Подписан"];
+const EMPLOYEE_HEADERS = ["Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"];
 
-function safeReadSheet(emp) {
-  try {
-    const ss = SpreadsheetApp.openById(emp.id);
-    const sheet = ss.getSheets()[0];
-    if (!sheet) return [];
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return [];
-    const rows = [];
-    for (let i = 1; i < data.length; i++) {
-      const r = data[i];
-      if (r.length < 8) continue;
-      rows.push({name: emp.name, date: r[0]||"", vacancy: r[1]||"", city: r[2]||"", fio: r[3]||"", phone: r[4]||"", age: r[5]||"", status: r[6]||"", notes: r[7]||""});
-    }
-    return rows;
-  } catch(e) { Logger.log("Ошибка "+emp.name+": "+e); return []; }
-}
-
-function getAllLeads() {
-  let all = [];
-  EMPLOYEES.forEach(emp => all = all.concat(safeReadSheet(emp)));
-  Logger.log("ВСЕГО ЛИДОВ: "+all.length);
-  return all;
-}
+const ACTIVE_KEEP_STATUSES = ["📝 Заявка", "🎫 Ожидает билеты", "🚗 Ожидает выезда", "🚀 В пути", "🏛️ В военкомате", "🔍 На проверке", "✅ Подписан"];
 
 function initSystem() {
-  const ss = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
-  let s = ss.getSheetByName(LEADS_SHEET) || ss.insertSheet(LEADS_SHEET); s.clear(); s.appendRow(["ID","Сотрудник","Дата","Вакансия","Город","ФИО","Телефон","Возраст","Статус","Заметки"]); headerStyle(s,10);
-  s = ss.getSheetByName(STATS_SHEET) || ss.insertSheet(STATS_SHEET); s.clear(); s.appendRow(["Дата","Всего","Подписано","Отказ","Свяьь","Активные","Успех %"]); headerStyle(s,7);
-  s = ss.getSheetByName(ACTIVES_SHEET) || ss.insertSheet(ACTIVES_SHEET); s.clear(); s.appendRow(["ID","Сотрудник","Дата","ФИО","Телефон","Статус","Заметки"]); headerStyle(s,7);
-  return "✅ Листы созданы";
+  initAdminTable_()';
+  SpreadsheetApp.getActive().toast("✅ Система готова!", "Готово", 5);
 }
 
-function headerStyle(sheet,cols) {
-  const r = sheet.getRange(1,1,1,cols); r.setBackground("#1a1a1a").setFontColor("#00ff88").setFontWeight("bold").setFontSize(12);
+function initAdminTable() {
+  initAdminTable_();
 }
 
-function syncAllSheets() {
+function initAdminTable_() {
   const ss = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
-  const allLeads = getAllLeads();
-  const ls = ss.getSheetByName(LEADS_SHEET); if(!ls) return "❌ Лист не найден";
-  ls.clearContents(); ls.appendRow(["ID","Сотрудник","Дата","Вакансия","Город","ФИО","Телефон","Возраст","Статус","Заметки"]); headerStyle(ls,10);
-  allLeads.sort((a,b)=>{const dA=a.date?new Date(a.date).getTime():0;const dB=b.date?new Date(b.date).getTime():0;return dB-dA;});
-  if(allLeads.length>0){
-    const data = allLeads.map((l,i)=>[i+1,l.name||"",l.date||"",l.vacancy||"",l.city||"",l.fio||"",l.phone||"",l.age||"",l.status||"",l.notes||""]);
-    const rng = ls.getRange(2,1,data.length,10); rng.setValues(data);
-    for(let i=0;i<data.length;i++) ls.getRange(2+i,1,1,10).setBackground(i%2===0?"#2d2d2d":"#1a1a1a");
+
+  setupAllLeadsSheet_(ss);
+  setupEmployeesSheet_(ss);
+  setupActiveCandidatesSheet_(ss);
+  setupStatsSheet_(ss);
+  
+  syncAllResponsesFromEmployees();
+  syncActiveCandidates();
+  updateAllStats();
+  
+  SpreadsheetApp.flush();
+}
+
+function setupAllLeadsSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Все лиды");
+  const headers = ["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"];
+  ensureHeaders_(sheet, headers, ADMIN_THEME);
+  applyDarkTheme_(sheet, headers.length);
+}
+
+function setupEmployeesSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Сотрудники");
+  const headers = ["Сотрудник", "ID таблицы", "Ссылка", "Статус", "Дата добавления"];
+  ensureHeaders_(sheet, headers, ADMIN_THEME);
+  
+  sheet.getRange(1, 1, 1, headers.length).createFilter();
+  
+  for (let i = 0; i < EMPLOYEES.length; i++) {
+    const emp = EMPLOYEES[i];
+    const row = i + 2;
+    sheet.getRange(row, 1, 1, headers.length).setValues([[emp.name, emp.id, "=HYPERLINK(\"https://docs.google.com/spreadsheets/d/"+emp.id+"\",\"Ссылка\")", "✅ Активен", "=TODAY()"]]);
   }
-  const st = ss.getSheetByName(STATS_SHEET); if(st){st.clearContents();st.appendRow(["Дата","Всего","Подписано","Отказ","Свяьь","Активные","Успех %"]);headerStyle(st,7);let tot=allLeads.length,conn=0,rfs=0,ct=0,ac=0;allLeads.forEach(l=>{const s=l.status||"";if(s.includes("✅"))conn++;if(s.includes("🔴")||s.includes("⚫")||s.includes("❌"))rfs++;if(s.includes("💬")||s.includes("🟡"))ct++;if(ACTIVE_STATUSES.indexOf(s)>=0)ac++;});st.appendRow([new Date(),tot,conn,rfs,ct,ac,(tot>0?Math.round(100*conn/tot):0)+"%"]);}
-  const acs = ss.getSheetByName(ACTIVES_SHEET); if(acs){acs.clearContents();acs.appendRow(["ID","Сотрудник","Дата","ФИО","Телефон","Статус","Заметки"]);headerStyle(acs,7);const act=allLeads.filter(l=>ACTIVE_STATUSES.indexOf(l.status||"")>=0);if(act.length>0){const data=act.map((l,i)=>[i+1,l.name||"",l.date||"",l.fio||"",l.phone||"",l.status||"",l.notes||""]);acs.getRange(2,1,data.length,7).setValues(data);}}
-  return "✅ Синхронизация: "+allLeads.length+" лидов";
+  
+  sheet.setColumnWidth(1, 150);
+  sheet.setColumnWidth(2, 300);
+  sheet.setColumnWidth(3, 200);
+  sheet.setColumnWidth(4, 100);
+  sheet.setColumnWidth(5, 150);
 }
 
-function onOpen(){try{const ui=SpreadsheetApp.getUi();ui.createMenu("_Офис Молодость Admin v4.0").addItem("Создать листы","initSystem").addItem("Синхронизировать","syncAllSheets").addToUi();}catch(e){Logger.log("Меню: "+e);}}
+function setupActiveCandidatesSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Активные лиды");
+  const headers = ["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"];
+  ensureHeaders_(sheet, headers, ADMIN_THEME);
+  sheet.getRange(1, 1, 1, headers.length).createFilter();
+}
+
+function setupStatsSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Статистика");
+  const headers = ["Период", "Сотрудник", "Всего", "Подписано", "Отказ", "Связь", "Активные", "Успех %", "Дата"];
+  ensureHeaders_(sheet, headers, ADMIN_THEME);
+}
+
+function syncActiveCandidates() {
+  const admin = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
+  const sheet = admin.getSheetByName("Активные лиды");
+  if (!sheet) return;
+
+  const activeSet = new Set(ACTIVE_KEEP_STATUSES.map(s => s.toLowerCase().trim()));
+  
+  let data = [];
+  let idCounter = 1;
+  EMPLOYEES.forEach(function(emp) {
+    try {
+      const ss = SpreadsheetApp.openById(emp.id);
+      const leadSheet = ss.getSheetByName("Лиды") || ss.getSheets()[0];
+      if (!leadSheet) return;
+      
+      const lr = safeLastRow_(leadSheet);
+      if (lr <= 1) return;
+      
+      const rows = leadSheet.getRange(2, 1, lr - 1, EMPLOYEE_HEADERS.length).getValues();
+      rows.forEach(function(r) {
+        const status = String(r[6] || "").trim();
+        if (activeSet.has(status.toLowerCase())) {
+          data.push([idCounter++, emp.name, r[0]||"", r[3]||"", r[4]||"", r[6]||"", r[7]||""]);
+        }
+      });
+    } catch(e) { Logger.log("Ошибка "+emp.name+": "+e); }
+  });
+  
+  sheet.clearContents();
+  sheet.appendRow(["ID", "Сотрудник", "Дата", "ФИО", "Телефон", "Статус", "Заметки"]);
+  if (data.length > 0) {
+    sheet.getRange(2, 1, data.length, 7).setValues(data);
+  }
+  applyDarkTheme_(sheet, 7);
+}
+
+function syncAllResponsesFromEmployees() {
+  const admin = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
+  const sheet = getOrCreateSheet_(admin, "Все лиды");
+  
+  let data = [];
+  let idCounter = 1;
+  EMPLOYEES.forEach(function(emp) {
+    try {
+      const ss = SpreadsheetApp.openById(emp.id);
+      const leadSheet = ss.getSheetByName("Лиды") || ss.getSheets()[0];
+      if (!leadSheet) return;
+      
+      const lr = safeLastRow_(leadSheet);
+      if (lr <= 1) return;
+      
+      const rows = leadSheet.getRange(2, 1, lr - 1, EMPLOYEE_HEADERS.length).getValues();
+      rows.forEach(function(r) {
+        if (!r[3] && !r[4]) return;
+        data.push([idCounter++, emp.name, r[0]||"", r[1]||"", r[2]||"", r[3]||"", r[4]||"", r[5]||"", r[6]||"", r[7]||""]);
+      });
+    } catch(e) { Logger.log("Ошибка "+emp.name+": "+e); }
+  });
+  
+  sheet.clearContents();
+  sheet.appendRow(["ID", "Сотрудник", "Дата", "Вакансия", "Город", "ФИО", "Телефон", "Возраст", "Статус", "Заметки"]);
+  if (data.length > 0) {
+    sheet.getRange(2, 1, data.length, 10).setValues(data);
+  }
+  applyDarkTheme_(sheet, 10);
+}
+
+function updateAllStats() {
+  const admin = SpreadsheetApp.openById(ADMIN_SPREADSHEET_ID);
+  const sheet = getOrCreateSheet_(admin, "Статистика");
+  
+  let data = [];
+  EMPLOYEES.forEach(function(emp) {
+    try {
+      const ss = SpreadsheetApp.openById(emp.id);
+      const leadSheet = ss.getSheetByName("Лиды") || ss.getSheets()[0];
+      if (!leadSheet) return;
+      
+      const lr = safeLastRow_(leadSheet);
+      if (lr <= 1) return;
+      
+      const rows = leadSheet.getRange(2, 1, lr - 1, EMPLOYEE_HEADERS.length).getValues();
+      let total = 0, connected = 0, refused = 0, active = 0, connectionCount = 0;
+      
+      rows.forEach(function(r) {
+        if (!r[3] && !r[4]) return;
+        total++;
+        const s = String(r[6] || "").toLowerCase().trim();
+        if (s.includes("✅") || s.includes("подпис")) connected++;
+        if (s.includes("🔴") || s.includes("❌") || s.includes("нд")) refused++;
+        if (s.includes("💬") || s.includes("🟡")) connectionCount++;
+        if (ACTIVE_KEEP_STATUSES.some(status => s.includes(status.toLowerCase()))) active++;
+      });
+      
+      data.push(["Месяц", emp.name, total, connected, refused, connectionCount, active, total>0 ? Math.round(100*connected/total) : 0, "=TODAY()"]);
+    } catch(e) { Logger.log("Ошибка "+emp.name+": "+e); }
+  });
+  
+  sheet.clearContents();
+  sheet.appendRow(["Период", "Сотрудник", "Всего", "Подписано", "Отказ", "Связь", "Активные", "Успех %", "Дата"]);
+  if (data.length > 0) {
+    sheet.getRange(2, 1, data.length, 9).setValues(data);
+  }
+  applyDarkTheme_(sheet, 9);
+}
+
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu("Админ: Офис Молодость")
+    .addItem("Создать структуру", "initSystem")
+    .addItem("Обновить все данные", "syncAllResponsesFromEmployees")
+    .addItem("Обновить активных", "syncActiveCandidates")
+    .addToUi();
+}
+
+function getOrCreateSheet_(ss, name) {
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function ensureHeaders_(sheet, headers, theme) {
+  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  let same = true;
+  for (let i = 0; i < headers.length; i++) {
+    if (current[i] !== headers[i]) {
+      same = false;
+      break;
+    }
+  }
+  if (!same) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  setHeaders_(sheet, headers, theme);
+}
+
+function setHeaders_(sheet, headers, theme) {
+  const range = sheet.getRange(1, 1, 1, headers.length);
+  range.setValues([headers]);
+  range.setFontWeight("bold").setFontSize(11).setFontFamily("Segoe UI")
+    .setBackground(theme.headerBg).setFontColor(theme.headerText)
+    .setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true);
+  sheet.setFrozenRows(1);
+}
+
+function applyDarkTheme_(sheet, cols) {
+  const rowCount = DATA_ROWS;
+  const bodyRows = rowCount - 1;
+
+  sheet.getRange(2, 1, bodyRows, cols).setFontColor(ADMIN_THEME.bodyText)
+    .setFontFamily("Segoe UI").setFontSize(10);
+
+  for (let row = 2; row <= rowCount; row++) {
+    sheet.getRange(row, 1, 1, cols).setBackground(row % 2 === 0 ? ADMIN_THEME.evenBg : ADMIN_THEME.oddBg);
+  }
+
+  sheet.getRange(1, 1, rowCount, cols).setBorder(true, true, true, true, true, true);
+}
+
+function safeLastRow_(sheet) {
+  if (!sheet || typeof sheet.getLastRow !== "function") return 1;
+  return sheet.getLastRow() || 1;
+}
